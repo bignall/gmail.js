@@ -27,7 +27,8 @@ var Gmail_ = function(localJQuery) {
               dom : {},
               chat : {},
               compose : {},
-              helper : {get: {}}
+              helper : {get: {}},
+              interact: {}
             };
 
   api.version           = "0.5";
@@ -270,6 +271,24 @@ var Gmail_ = function(localJQuery) {
 
     return tb;
 };
+
+    api.dom.mail_list = function () {
+	var el = gmail.dom.inbox_content();
+	return $(el).find('table tbody tr td div[role=link]');
+    }
+
+    api.dom.nav_buttons = function() {
+	var tb = $("[gh='tm'] div.h0");
+	while($(tb).children().length == 1){
+	    tb = $(tb).children().first();
+	}
+	return tb;
+    };
+
+    api.dom.older_button = function() {
+	var btn = gmail.dom.nav_buttons().find('div.T-I-Js-Gs');
+	return btn;
+    }
 
 
   api.check.is_inside_email = function() {
@@ -568,6 +587,36 @@ var Gmail_ = function(localJQuery) {
              social        : api.get.unread_social_emails() }
   };
 
+  api.interact.click_delete_button = function() {
+      var btn = gmail.dom.toolbar().find('div[act=10]');
+console.log('delete button: ', btn);
+      if (btn.length) {
+	  // Fire mouseUp and MouseDown Events simultaneously
+	  api.tools.fire_event(btn[0], 'mousedown');
+	  api.tools.fire_event(btn[0], 'mouseup');
+      }
+  }
+
+  api.interact.click_older_button = function() {
+      // click the older button
+      var btn = gmail.dom.nav_buttons().find('div.T-I-Js-Gs');
+console.log('older button: ', btn);
+      if (btn.length) {
+	  api.tools.fire_event(btn[0], 'click');
+      }
+  }
+
+  api.interact.open_mail = function(el) {
+      if (!el) {
+	  mails = gmail.dom.mail_list();
+	  if (mails.length) {
+	      el = mails[0];
+	  }
+      }
+      if (el) {
+	  api.tools.fire_event(el, 'click');
+      }
+  }
 
   api.tools.error = function(str) {
     if (console) {
@@ -677,6 +726,63 @@ var Gmail_ = function(localJQuery) {
     });
     return obj;
   };
+
+  // Fire an event on a node
+  // Thanks to http://stackoverflow.com/questions/7054204/programmatically-click-gmails-show-original-button-in-a-chrome-extension
+  api.tools.fire_event = function(node, eventName) {
+      // Make sure we use the ownerDocument from the provided node to avoid cross-window 
+      //problems
+      var doc;
+      if (node.ownerDocument) {
+	  doc = node.ownerDocument;
+      } else if (node.nodeType == 9) {
+	  // the node may be the document itself, nodeType 9 = DOCUMENT_NODE
+	  doc = node;
+      } else {
+	  throw new Error("Invalid node passed to JSUtil.fireEvent: " + node.id);
+      }
+      
+      if (node.fireEvent) {
+	  // IE-style
+	  var event = doc.createEventObject();
+	  event.synthetic = true; // allow detection of synthetic events
+	  node.fireEvent("on" + eventName, event);
+      } else if (node.dispatchEvent) {
+	  // Gecko-style approach is much more difficult.
+	  var eventClass = "";
+	  
+	  // Different events have different event classes.
+	  // If this switch statement can't map an eventName to an eventClass,
+	  // the event firing is going to fail.
+	  switch (eventName) {
+          case "click":
+              // Dispatching of 'click' appears to not work correctly in Safari. Use 'mousedown' or 'mouseup' instead.
+          case "mousedown":
+          case "mouseup":
+	  case "contextmenu":
+	  case "dblclick":
+              eventClass = "MouseEvents";
+              break;
+	      
+          case "focus":
+          case "change":
+          case "blur":
+          case "select":
+              eventClass = "HTMLEvents";
+              break;
+	      
+          default:
+              throw "JSUtil.fireEvent: Couldn't find an event class for event '" + eventName + "'.";
+              break;
+	  }
+	  var event = doc.createEvent(eventClass);
+	  var bubbles = eventName == "change" ? false : true;
+	  event.initEvent(eventName, bubbles, true); // All events created as bubbling and cancelable.
+	  
+	  event.synthetic = true; // allow detection of synthetic events
+	  node.dispatchEvent(event);
+      }
+  }
 
   api.tools.parse_actions = function(params, xhr) {
 
@@ -983,6 +1089,7 @@ var Gmail_ = function(localJQuery) {
   };
 
 
+
   api.observe.http_requests = function() {
     return api.tracker.events;
   };
@@ -1179,7 +1286,7 @@ var Gmail_ = function(localJQuery) {
   // console.log( 'Observer set for', action, callback);
   api.observe.initialize_dom_observers = function() {
     api.tracker.dom_observer_init = true;
-    api.tracker.supported_observers = ['view_thread', 'view_email', 'load_email_menu', 'recipient_change', 'compose'];
+    api.tracker.supported_observers = ['view_thread', 'view_email', 'load_email_menu', 'recipient_change', 'compose', 'mail_list'];
     api.tracker.dom_observers = {
 
       // when a thread is clicked on in a mailbox for viewing - note: this should fire at a similar time (directly after) as the open_email XHR observer
@@ -1269,6 +1376,15 @@ var Gmail_ = function(localJQuery) {
           }
           callback(match,type);
         }
+      },
+      'mail_list': { //div[role=main]:first table tbody tr
+	  class: [ 'PF'],
+	  handler: function(match, callback) {
+	      match = match.closest('.BltHke');
+	      if (!match.length) return;
+	      match = new api.dom.mail_list(match);
+	      callback(match);
+	  }
       }
     };
 
@@ -1637,6 +1753,24 @@ var Gmail_ = function(localJQuery) {
       page = 'email';
     }
 
+      // check for a label or category with a message id
+      if (!page && /^(label|category)\/.*\/([a-zA-z0-9]*)/.test(hash)) {
+	  // sometimes what looks like a message id actually isn't, so
+	  // check for the email body to be sure
+	  if (api.dom.email_body().length) {
+	      page = 'email';
+	  }
+      }
+
+      if (!page && /^(label|category)\/.*/.test(hash)) {
+	  //sometimes when we're in a label or category it will show
+	  //an email without putting the message id in the hash, so
+	  //check for the email body
+	  if (api.dom.email_body().length) {
+	      page = 'email';
+	  }
+      }
+      
     return page || hash;
   };
 

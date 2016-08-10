@@ -218,6 +218,7 @@ These are some helper functions that the rest of the methods use. See source for
 - gmail.tools**.xhr_watcher()**
 - gmail.tools**.parse_url()**
 - gmail.tools**.deparam()**
+- gmail.tools**.fire_event()**
 - gmail.tools**.parse_view_data()**
 - gmail.tools**.parse_email_data()**
 - gmail.tools**.extract_email_address(str)**
@@ -1184,6 +1185,35 @@ var el = thread.dom();
 var subject = thread.dom('subject');
 console.log('El is',el,'Subject element is',subject);
 ```
+#### gmail.dom.mail_list
+
+Get the list of mails currently displayed in the dom (when not in an email)
+
+#### gmail.dom.nav_buttons
+
+Get the nav buttons element (newer/older buttons)
+
+#### gmail.dom.older_button
+
+Get the older button dom element
+
+### gmail.interact
+
+Allows you to interact with the current dom
+
+#### gmail.interact.click_delete_button
+
+Click the delete button on the current mail
+
+#### gmail.interact.click_older_button
+
+Click the older button
+
+#### gmail.interact.open_mail(element)
+
+Clicks the mail element given or the first mail in the mail list
+currently in the dom
+
 
 #### gmail.tools.add_toolbar_button(content_html, onclick_action, custom_style_class)
 
@@ -1236,6 +1266,19 @@ function() {
 	gmail.tools.remove_modal_window();
 });
 ```
+
+#### gmail.tools.fire_event(node, eventName)
+
+Fires an event on the node given.  Used by gmail.interact functions.
+Event name options are:
+- click
+- mousedown
+- mouseup
+- dblclick
+- focus
+- change
+- blur
+-select
 
 ## Author and Licensing
 
